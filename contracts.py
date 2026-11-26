@@ -110,6 +110,48 @@ class TriggerEvent:
     quoted_at: datetime
     chat_id: int
 
+type OutboxStatus = Literal[
+    "pending", "sending", "sent", "retry", "failed", "cancelled", "unknown"
+]
+
+
+@dataclass(frozen=True, slots=True)
+class OutboxEvent:
+    """(HLD 6.1, 8.1)."""
+
+    id: UUID
+    alert_id: UUID
+    trigger_seq: int
+    payload: dict[str, JsonValue]
+    status: OutboxStatus
+    attempts: int
+    next_attempt_at: datetime | None
+    lease_until: datetime | None
+    sent_at: datetime | None
+    telegram_message_id: int | None
+    last_error_code: str | None
+
+    def __post_init__(self) -> None:
+        if self.attempts < 0:
+            raise ValueError("attempts не может быть отрицательным")
+
+
+def trigger_payload(event: TriggerEvent) -> dict[str, JsonValue]:
+    """ (HLD 4.3)."""
+    return {
+        "alert_id": str(event.alert_id),
+        "trigger_seq": event.trigger_seq,
+        "pair_id": str(event.pair.id),
+        "base_code": event.pair.base_code,
+        "quote_code": event.pair.quote_code,
+        "kind": event.pair.kind,
+        "price": str(event.price),
+        "threshold": str(event.threshold),
+        "condition": event.condition,
+        "detected_at": event.detected_at.isoformat(),
+        "quoted_at": event.quoted_at.isoformat(),
+        "chat_id": event.chat_id,
+    }
 
 @dataclass(frozen=True, slots=True)
 class DialogSession:

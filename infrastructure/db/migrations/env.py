@@ -1,20 +1,32 @@
+"""Async Alembic environment для SQLAlchemy 2 + asyncpg."""
+import asyncio
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+
+_project_root = Path(__file__).resolve().parents[3]
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 from infrastructure.db.models import Base
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    """Миграции в offline-режиме (без подключения к БД)."""
+    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=config.get_main_option("sqlalchemy.url"),
+        url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -25,12 +37,18 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    """Миграции в online-режиме (с подключением к БД)."""
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 async def run_async_migrations() -> None:
+    """Async-обёртка для работы с asyncpg."""
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -42,7 +60,7 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
-    import asyncio
+    """Запуск async-миграций из sync-точки входа Alembic."""
     asyncio.run(run_async_migrations())
 
 
